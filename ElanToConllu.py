@@ -238,6 +238,7 @@ def miseEnForme(list_temp, list_element):
     list_text = []
     for i in list_element:
         if i == list_element[len(list_element) - 1]:
+            list_text.append(i)
             list_text.append("#")
         else:
             if i[1] in list_temp:
