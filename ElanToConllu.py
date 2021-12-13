@@ -165,25 +165,44 @@ def ConlluContent(eafob,
                 f = i[2]
                 feat[feat.index(i)] = [i[0], i[1], f.split('~')]
 
-    for feat in FEATS:
-        for i in feat:
+    for feat, pos in zip(FEATS, POS):
+        for i, j in zip(feat, pos):
             if type(i[2]) != list:
                 if str(i[2]).islower():
-                    sous_list.append([i[0], i[1], 'Gloss= ' + str(i[2]) + '|Times= ' + str(i[0]) + ', ' + str(i[1])])
+                    GE = str(preprocess_MISC_Value(i[2]))
+                    RX = str(preprocess_MISC_Value(j[2]))
+                    sous_list.append([i[0], i[1],
+                                      'Gloss= ' + str(i[2]) + '|AlignBegin= ' + str(i[0]) + '|AlignEnd= ' + str(
+                                          i[1]) + '|GE= ' + str(GE) + '|RX= ' + str(RX)])
                     feat[feat.index(i)] = [i[0], i[1], '_']
                 elif str(i[2]).istitle() and str(i[2]).startswith('-') == False:
-                    sous_list.append(
-                        [i[0], i[1], 'ProperName= ' + str(i[2]) + '|Times= ' + str(i[0]) + ', ' + str(i[1])])
+                    GE = preprocess_MISC_Value(i[2])
+                    RX = preprocess_MISC_Value(j[2])
+                    sous_list.append([i[0], i[1],
+                                      'ProperName= ' + str(i[2]) + '|AlignBegin= ' + str(i[0]) + '|AlignEnd= ' + str(
+                                          i[1]) + '|GE= ' + str(GE) + '|RX= ' + str(RX)])
                     feat[feat.index(i)] = [i[0], i[1], '_']
                 else:
-                    sous_list.append([i[0], i[1], 'Times= ' + str(i[0]) + ', ' + str(i[1])])
+                    GE = preprocess_MISC_Value(i[2])
+                    RX = preprocess_MISC_Value(j[2])
+                    sous_list.append([i[0], i[1],
+                                      'AlignBegin= ' + str(i[0]) + '|AlignEnd= ' + str(i[1]) + '|GE= ' + str(
+                                          GE) + '|RX= ' + str(RX)])
 
             elif str(i[2][0]).islower():
-                sous_list.append([i[0], i[1], 'Gloss= ' + str(i[2][0]) + '|Times= ' + str(i[0]) + ', ' + str(i[1])])
+                GE = preprocess_MISC_Value(i[2][1])
+                RX = preprocess_MISC_Value(j[2])
+                sous_list.append([i[0], i[1],
+                                  'Gloss= ' + str(i[2][0]) + '|AlignBegin= ' + str(i[0]) + '|AlignEnd= ' + str(
+                                      i[1]) + '|GE= ' + str(GE) + '|RX= ' + str(RX)])
                 feat[feat.index(i)] = [i[0], i[1], str(i[2][1])]
 
             elif str(i[2][1]).islower():
-                sous_list.append([i[0], i[1], 'Gloss= ' + str(i[2][1]) + '|Times= ' + str(i[0]) + ', ' + str(i[1])])
+                GE = preprocess_MISC_Value(i[2][0])
+                RX = preprocess_MISC_Value(j[2])
+                sous_list.append([i[0], i[1],
+                                  'Gloss= ' + str(i[2][1]) + '|AlignBegin= ' + str(i[0]) + '|AlignEnd= ' + str(
+                                      i[1]) + '|GE= ' + str(GE) + '|RX= ' + str(RX)])
                 feat[feat.index(i)] = [i[0], i[1], str(i[2][0])]
 
             elif re.search(r"([A-Z])~([a-z])", i[2][0]):
@@ -191,10 +210,18 @@ def ConlluContent(eafob,
                 f = f.split('~')
 
                 if str(f[1]).islower():
-                    sous_list.append([i[0], i[1], 'Gloss= ' + str(f[1]) + '|Times= ' + str(i[0]) + ', ' + str(i[1])])
+                    GE = preprocess_MISC_Value(i[2])
+                    RX = preprocess_MISC_Value(j[2])
+                    sous_list.append([i[0], i[1],
+                                      'Gloss= ' + str(f[1]) + '|AlignBegin= ' + str(i[0]) + '|AlignEnd= ' + str(
+                                          i[1])] + '|GE= ' + str(GE) + '|RX= ' + str(RX))
                     feat[feat.index(i)] = [i[0], i[1], str(f[0]) + "." + str(i[2][1])]
             else:
-                sous_list.append([i[0], i[1], 'Times= ' + str(i[0]) + ', ' + str(i[1])])
+                GE = preprocess_MISC_Value(i[2])
+                RX = preprocess_MISC_Value(j[2])
+                sous_list.append([i[0], i[1], 'AlignBegin= ' + str(i[0]) + '|AlignEnd= ' + str(i[1]) + '|GE= ' + str(
+                    GE) + '|RX= ' + str(RX)])
+
         MISC.append(sous_list)
         sous_list = []
 
@@ -238,7 +265,6 @@ def miseEnForme(list_temp, list_element):
     list_text = []
     for i in list_element:
         if i == list_element[len(list_element) - 1]:
-            list_text.append(i)
             list_text.append("#")
         else:
             if i[1] in list_temp:
@@ -256,6 +282,24 @@ def miseEnForme(list_temp, list_element):
             list_out.append(sous_list)
             sous_list = []
     return list_out
+
+
+def preprocess_MISC_Value(annot):
+    ele = re.split('(\W)', annot)
+
+    while '' in ele:
+        ele.remove('')
+
+    for j in ele:
+        if j != '=' and j != '.' and j != '\\' and j != '~' and j != '-':
+            if j.islower():
+                ele[ele.index(j)] = j
+            else:
+                ele[ele.index(j)] = '[' + j + ']'
+
+    ele = ''.join(ele)
+
+    return ele
 
 def makeConllu(
         path_in,
@@ -286,7 +330,7 @@ def makeConllu(
             comp += 1
             file.write("# sent_id = " + sent_id[2] + '\n')
             file.write("# text = " + text[2] + '\n')
-            file.write("# tokenized_text = " + tokenized[2] + '\n')
+            file.write("# phonetic_text = " + tokenized[2] + '\n')
             if trad[2].endswith('and §'):
                 x = re.sub('and §$', '[and]', trad[2])
                 file.write("# text_en = " + x + '\n')
