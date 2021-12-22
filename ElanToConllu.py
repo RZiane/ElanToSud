@@ -10,12 +10,17 @@ def ConlluContent(eafob,
                   pos_tier):
 
     # création de liste de tuple à partir des tiers utiles
-    list_Mft = eafob.get_annotation_data_for_tier(ref_tier)
-    list_ref = eafob.get_annotation_data_for_tier(id_tier)
-    list_motSP = eafob.get_annotation_data_for_tier(lemmaToken_tier)
-    list_mbSP = eafob.get_annotation_data_for_tier(morphoToken_tier)
-    list_geSP = eafob.get_annotation_data_for_tier(feats_tier)
-    list_rxSP = eafob.get_annotation_data_for_tier(pos_tier)
+    list_Mft = eafob.get_annotation_data_for_tier(ref_tier)    #print('list_MftSP');    print(list_Mft)
+
+    list_ref = eafob.get_annotation_data_for_tier(id_tier)     # print('list_refSP'); print(list_ref)
+
+    list_motSP = eafob.get_annotation_data_for_symbsub_tier(lemmaToken_tier)    # print('list_motSP'); print(list_motSP)
+
+    list_mbSP = eafob.get_annotation_data_for_symbsub_tier(morphoToken_tier)    #print('list_mbSP') ;  #print(list_mbSP)
+
+    list_geSP = eafob.get_annotation_data_for_symbsub_tier(feats_tier)    #print('list_geSP'); print('list_geSP')
+
+    list_rxSP = eafob.get_annotation_data_for_symbsub_tier(pos_tier)    # print('list_rxSP'); print('list_rxSP')
 
     ###################################################################################
     # segmentation et metadata #text_en
@@ -35,7 +40,7 @@ def ConlluContent(eafob,
         if string.endswith('§') == True:
             p_list.append(i)
             p_list.append("$")
-
+    # print('p_list'); print(p_list)
     # segmentation
     sous_list = []
     for i in p_list:
@@ -44,7 +49,6 @@ def ConlluContent(eafob,
         else:
             list_unitMax.append(sous_list)
             sous_list = []
-
     # remise en forme selon la nouvelle segmentation et création de #text_en
     text_en = buildMetadata(list_unitMax)
 
@@ -60,11 +64,11 @@ def ConlluContent(eafob,
 
     # conversion de la liste de tuples en liste de liste (plus pratique pour le traitement)
     list_mot = tupleToList(list_motSP)
-
-    for i in list_mot:
-        if re.search(r"[0-9]", i[2]):
-            list_mot[list_mot.index(i) - 1][1] = i[1]
-            list_mot.remove(i)
+    #supprime les pauses => pb
+    #for i in list_mot:
+    #    if re.search(r"[0-9]", i[2]):
+    #       list_mot[list_mot.index(i) - 1][1] = i[1]
+    #       list_mot.remove(i)
 
     # mise en forme de la liste Mots
     Mots = miseEnForme(list_temp, list_mot)
@@ -80,7 +84,8 @@ def ConlluContent(eafob,
     IDs = miseEnForme(list_temp, list_ref)
 
     # création liste métadonnées #sent_id
-    nameNumRef = list_ref[0][2].rstrip('001')
+    #nameNumRef = list_ref[0][2].rstrip('001')
+    nameNumRef = re.split('([0-9]+$)', list_ref[0][2])[0]  # numérotation peut être sur 2, 3 ou 4 chiffres CC 15/12
     sent_id = []
     for textMax in IDs:
         num = textMax[0][2].split(nameNumRef)[1] + '-' + textMax[len(textMax) - 1][2].split(nameNumRef)[1]
@@ -94,11 +99,13 @@ def ConlluContent(eafob,
     # conversion de la liste de tuples en liste de liste (plus pratique pour le traitement)
     list_token = tupleToList(list_mbSP)
 
-    # suppression des vides
-    for i in list_token:
-        if i[2] == '':
-            list_token[list_token.index(i) - 1][1] = i[1]
-            list_token.remove(i)
+    # CC 15/11 il ne doit pas y avoir de trous dans les annotations
+    # générer les annotations dépendantes dans ELAN (toutes les tiers)
+    # suppression des vides => pb : les index des items vides sont nécessaires pour 'miseEnforme'
+    #for i in list_token:
+    #    if i[2] == '':
+    #        list_token[list_token.index(i) - 1][1] = i[1]
+    #        list_token.remove(i)
 
     # mise en forme des tokens à partir de la tier mb@SP
 
@@ -253,6 +260,7 @@ def buildMetadata(metadatas):
     for unitMax in metadatas:
         s = ' '.join([str(unit[2]) for unit in unitMax])
         mdata.append((unitMax[0][0], unitMax[len(unitMax) - 1][1], s))
+    print(mdata)
     return mdata
 
 def alignTimeCode(list_):
@@ -285,21 +293,24 @@ def miseEnForme(list_temp, list_element):
 
 
 def preprocess_MISC_Value(annot):
-    ele = re.split('(\W)', annot)
+    #sépare les gloses des etiquettes morpho-syntaxiques test string CC 15/12
+    if isinstance(annot, str):
+        ele = re.split('(\W)', annot)
+        while '' in ele:
+            ele.remove('')
 
-    while '' in ele:
-        ele.remove('')
+        for j in ele:
+            if j != '=' and j != '.' and j != '\\' and j != '~' and j != '-':
+                if j.islower():
+                    ele[ele.index(j)] = j
+                else:
+                    ele[ele.index(j)] = '[' + j + ']'
 
-    for j in ele:
-        if j != '=' and j != '.' and j != '\\' and j != '~' and j != '-':
-            if j.islower():
-                ele[ele.index(j)] = j
-            else:
-                ele[ele.index(j)] = '[' + j + ']'
+        ele = ''.join(ele)
 
-    ele = ''.join(ele)
-
-    return ele
+        return ele
+    else:
+        return annot
 
 def makeConllu(
         path_in,
@@ -309,10 +320,8 @@ def makeConllu(
         morphoToken_tier,
         feats_tier,
         pos_tier):
-
     fichier = path_in
     eafob = pympi.Elan.Eaf(fichier)
-
     text_en, text, tokenized_text, FORM, FEATS, POS, MISC, sent_id = ConlluContent(eafob,
                                                                              ref_tier,
                                                                              id_tier,
@@ -322,11 +331,14 @@ def makeConllu(
                                                                              pos_tier)
 
     # écriture dans le fichier de sortie
-    fichier = fichier.rstrip("\.eaf").lstrip("C:/Users/ziane/py/stageM2/beja/align//.")
-    with open("C:/Users/ziane/py/stageM2/beja/output/" + fichier + ".conllu", "w", encoding='utf-8') as file:
+    #fichier = fichier.rstrip("\.eaf").lstrip("C:/Users/ziane/py/stageM2/beja/align//.")
+    fichier = path_in.rstrip("\.eaf")
+    #with open("C:/Users/ziane/py/stageM2/beja/output/" + fichier + ".conllu", "w", encoding='utf-8') as file:
+    with open(fichier + ".conllu", "w", encoding='utf-8') as file:
         comp = 0
         for sent_id, trad, text, tokenized, form, feat, pos, misc in zip(sent_id, text_en, text, tokenized_text, FORM, FEATS, POS,
                                                                           MISC):
+
             comp += 1
             file.write("# sent_id = " + sent_id[2] + '\n')
             file.write("# text = " + text[2] + '\n')
@@ -340,16 +352,17 @@ def makeConllu(
             # file.write("\n")
             id_token = 0
             for t, f, p, m in zip(form, feat, pos, misc):
-                id_token += 1
-                # print(id_token, t[2], f[2], p[2])
-                file.write(str(id_token) + '\t'
-                           + str(t[2]) + '\t'
-                           + '_' + '\t'
-                           + '_' + '\t'
-                           + str(p[2]) + '\t'
-                           + str(f[2]) + '\t'
-                           + '_' + '\t'
-                           + '_' + '\t'
-                           + '_' + '\t'
-                           + str(m[2]) + '\n')
+                if t[2]  != '':         # suppression des lignes vides (pauses, BI...)
+                    id_token += 1
+                    # print(id_token, t[2], f[2], p[2])
+                    file.write(str(id_token) + '\t'
+                               + str(t[2]) + '\t'
+                               + '_' + '\t'
+                               + '_' + '\t'
+                               + str(p[2]) + '\t'
+                               + str(f[2]) + '\t'
+                               + '_' + '\t'
+                               + '_' + '\t'
+                               + '_' + '\t'
+                               + str(m[2]) + '\n')
             file.write("\n")
